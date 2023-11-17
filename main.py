@@ -2,12 +2,10 @@ import pygame
 
 pygame.init()
 
-SCREEN_SIZE = (1000, 500)
-
+SCREEN_SIZE = (960, 576)
 
 screen = pygame.display.set_mode(SCREEN_SIZE)
-pygame.display.set_caption("Nordic_Journey")
-
+pygame.display.set_caption("Nordic Journey")
 
 class ImageChanger:
     def __init__(self, img):
@@ -60,6 +58,7 @@ class AnimatedSprite(pygame.sprite.Sprite):
         self.velocity = [0, 0]
         self.x = x
         self.y = y
+        self.jump = 0
         self.dir = 1
         self.modes = ['idle']
         self.mode = 'idle'
@@ -75,14 +74,28 @@ class AnimatedSprite(pygame.sprite.Sprite):
             self.dir = 0
         elif self.velocity[0] > 0:
             self.dir = 1
-        if self.velocity[1] > 0:
-            self.velocity[1] -= GRAVITY
-
+        if self.jump:
+            self.velocity[1] += GRAVITY
+            self.jump -= 1
+        else:
+            self.jump = 0
+            self.velocity[1] = 0
+        if self.y > GROUND:
+            self.y = GROUND
+            self.velocity[1] = 0
+            self.jump = 0
         screen.blit(self.animation[self.mode].image if self.dir else pygame.transform.flip(self.animation[self.mode].image.convert_alpha(), True, False), (self.x, self.y))
 
     def add_animation(self, animation, mode):
         self.animation[mode] = animation
         self.modes.append(mode)
+
+class Tile(pygame.sprite.Sprite):
+    def __init__(self, img, x, y):
+        super().__init__()
+        self.image =pygame.transform.scale(pygame.image.load(img).convert_alpha(), (TILESIZE, TILESIZE))
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
 
 BG = (50, 50, 50)
 BLACK = (0, 0, 0)
@@ -90,44 +103,62 @@ BLACK = (0, 0, 0)
 clock = pygame.time.Clock()
 FPS = 60
 VELOCITY = 4
+JUMPVEL = 8
 GRAVITY = 0.5
-
-King = AnimatedSprite(Animation("src/King/idle.png", [7] * 11, 0, True, 63, 58, 15), 100, 100)
+GROUND = 300
+KING_SIZE = 132
+TILESIZE = 64
+King = AnimatedSprite(Animation("src/King/idle.png", [7] * 11, 0, True, 63, 58, 15), 100, GROUND)
 King.add_animation(Animation("src/King/run.png", [6] * 8, 0, True, 63, 58, 15), "run")
+King.add_animation(Animation("src/King/jump.png", [JUMPVEL//GRAVITY, JUMPVEL//GRAVITY], 0, False, 63, 58), "jump")
 
 def King_mode(King):
-    if King.velocity[0] == 0:
-        King.mode = 'idle'
+    if King.jump:
+        King.mode = "jump"
+    elif King.velocity[0]:
+        King.mode = "run"
     else:
-        King.mode = 'run'
+        King.mode = "idle"
+
+Tile_Group = pygame.sprite.Group()
+Tile_Group.add(Tile("src/Tile/lefttop.png", 0, GROUND + KING_SIZE))
+Tile_Group.add(Tile("src/Tile/leftmiddle.png", 0, GROUND + KING_SIZE + TILESIZE))
+for i in range(1, 12):
+    Tile_Group.add(Tile("src/Tile/middletop.png", i * TILESIZE, GROUND + KING_SIZE))
+    Tile_Group.add(Tile("src/Tile/middlemiddle.png", i * TILESIZE, GROUND + KING_SIZE + TILESIZE))
+Tile_Group.add(Tile("src/Tile/righttop.png", (i + 1) * TILESIZE, GROUND + KING_SIZE))
+Tile_Group.add(Tile("src/Tile/rightmiddle.png", (i + 1) * TILESIZE, GROUND + KING_SIZE + TILESIZE))
 
 run = True
 while run:
     clock.tick(FPS)
-    screen.fill(BG)
-    # print(King.step_idx)
+    # screen.fill((255, 255, 255))
+    screen.blit(pygame.transform.scale(pygame.image.load("src/Tile/BG1.png").convert_alpha(), SCREEN_SIZE), (0, 0))
+    screen.blit(pygame.transform.scale(pygame.image.load("src/Tile/BG2.png").convert_alpha(), SCREEN_SIZE), (0, 0))
+    screen.blit(pygame.transform.scale(pygame.image.load("src/Tile/BG3.png").convert_alpha(), SCREEN_SIZE), (0, 0))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
         if event.type == pygame.KEYDOWN:
-            # print(event.key)
             if event.key == pygame.K_ESCAPE:
                 run = False
             elif event.key == pygame.K_LEFT:
                 King.velocity[0] += -VELOCITY
             elif event.key == pygame.K_RIGHT:
                 King.velocity[0] += VELOCITY
-            elif event.key == pygame.K_UP:
-                King.velocity[1] += -VELOCITY
+            elif event.key in (pygame.K_UP, pygame.K_SPACE) and not King.jump:
+                King.velocity[1] += -JUMPVEL
+                King.jump = JUMPVEL//GRAVITY*2
         elif event.type == pygame.KEYUP:
-            # print(event.key, "up")
             if event.key == pygame.K_LEFT:
                 King.velocity[0] += VELOCITY
             elif event.key == pygame.K_RIGHT:
                 King.velocity[0] -= VELOCITY
     King_mode(King)
     King.update()
-    # print(King.rect.x, King.rect.y)
+    Tile_Group.draw(screen)
+    # print(King.jump, King.velocity[1])
     pygame.display.update()
+
 
 pygame.quit()
