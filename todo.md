@@ -5,7 +5,7 @@
 1. Shop
 
 ## class
-1. TM class
+~~TM class~~
 1. stage class
 1. Boss class
 
