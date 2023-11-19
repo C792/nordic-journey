@@ -1,56 +1,12 @@
 import pygame
 import random
+from Animation import Animation, AnimGroup, ImageChanger
 pygame.init()
 
 SCREEN_SIZE = (960, 576)
 
 screen = pygame.display.set_mode(SCREEN_SIZE)
 pygame.display.set_caption("Nordic Journey")
-
-class ImageChanger:
-    def __init__(self, img):
-        self.img = img
-
-    def get_image(self, frame, width, height, padding, scale, color, dir = 1):
-        image = pygame.Surface((width, height)).convert_alpha()
-        if dir == 2:image.blit(self.img, (0, 0), (0, (frame * (height + padding)), width, height))
-        else: image.blit(self.img, (0, 0), ((frame * (width + padding)), 0, width, height))
-        image = pygame.transform.scale(image, (width * scale, height * scale))
-        image.set_colorkey(color)
-
-        return image
-
-
-class Animation(pygame.sprite.Sprite):
-    def __init__(self, img, steps=[], cooldown=0, loop=True, width=0, height=0, padding=0, d=1):
-        self.sprite_sheet = ImageChanger(pygame.image.load(img).convert_alpha())
-        self.steps = steps
-        self.frames = [
-            self.sprite_sheet.get_image(i, width, height, padding, 3, BLACK, d)
-            for i in range(len(steps))
-        ]
-        self.step_idx = 0
-        self.current_frame = 0
-        self.cooldown = cooldown
-        self.loop = loop
-        self.image = self.frames[self.current_frame]
-        self.last_update = pygame.time.get_ticks()
-
-    def update(self):
-        self.current_frame += 1
-        if self.current_frame >= self.steps[self.step_idx]:
-            self.current_frame = 0
-            self.step_idx += 1
-            if self.step_idx >= len(self.steps):
-                self.step_idx = 0 if self.loop else len(self.steps) - 1
-
-        self.image = self.frames[self.step_idx]
-
-    def reset(self):
-        self.step_idx = 0
-        self.current_frame = 0
-        # screen.blit(self.image, (self.x, self.y))
-
 
 class AnimatedSprite(pygame.sprite.Sprite):
     def __init__(self, idle_animation = None, x = 0, y = 0, health = 100):
@@ -125,7 +81,47 @@ class Tile(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.topleft = (x, y)
 
-class TreeMonster(AnimatedSprite):
+class Mob(AnimatedSprite):
+    def __init__(self, idle_animation, x=0, y=0, health=1):
+        super().__init__(idle_animation, x, y, health)
+        self.walk = 0
+        self.damage = 0
+        self.walk_cooldown = 0
+
+    def set_mode(self):
+        if self.damage:
+            self.mode = "damage"
+        elif self.attack:
+            self.mode = "attack"
+        elif self.walk:
+            self.mode = "walk"
+            self.walk -= 1
+            if self.walk == 0:
+                self.velocity[0] = 0
+        elif self.velocity[0]:
+            self.mode = "run"
+        elif self.death:
+            self.mode = "death"
+        else:
+            self.mode = "idle"
+    
+    def update(self):
+        super().update()
+
+    def wander(self):
+        if self.mode not in ["damage", "death", "attack"] and self.walk_cooldown == 0:
+            self.walk = 30 * random.randint(1, 6)
+            self.velocity[0] = random.choice((-1, 1, -2, 2))
+            self.walk_cooldown = random.randint(7 * 60, 12 * 60)
+    
+    def auto_attack(self):
+        if self.mode != "attack" and pygame.sprite.collide_rect(King, self) and self.mode != "death":
+            self.walk = 0
+            self.velocity[0] = 0
+            self.dir = 1 if King.rect.centerx > self.rect.centerx else 0
+            self.attack = sum(self.animation["attack"].steps)
+
+class TreeMonster(Mob):
     def __init__(self, x=0, y=0, health=40):
         super().__init__(Animation("src/TreeMonster/idle.png", [15] * 4, 0, True, 96, 96, 0, 2), x, y, health)
         # TM = AnimatedSprite(Animation("src/TreeMonster/idle.png", [15] * 4, 0, True, 96, 96, 0, 2), 300, GROUND - TM_PADDING)
@@ -139,23 +135,6 @@ class TreeMonster(AnimatedSprite):
         self.add_animation(Animation("src/TreeMonster/damage.png", [2, 2, 3, 3, 3], 0, False, 96, 96, 0, 2), "damage")
         self.add_animation(Animation("src/TreeMonster/death.png", [5] * 8, 0, False, 96, 96, 0, 2), "death")
     
-    def set_mode(self):
-        if self.damage:
-            self.mode = "damage"
-        elif self.attack:
-            self.mode = "attack"
-        elif self.walk:
-            self.mode = "walk"
-            self.walk -= 1
-            if self.walk == 0:
-                self.velocity[0] = 0
-        elif self.velocity[0]:
-            self.mode = "run"
-        elif self.death:
-            self.mode = "death"
-        else:
-            self.mode = "idle"
-    
     def update(self):
         super().update()
         self.set_mode()
@@ -165,19 +144,6 @@ class TreeMonster(AnimatedSprite):
             Coins.add(Coin(*self.rect.center))
             Coins.add(Coin(*self.rect.center))
             Coins.add(Coin(*self.rect.center))
-
-    def wander(self):
-        if self.mode != "death" and self.mode != "damage" and self.walk_cooldown == 0:
-            self.walk = 30 * random.randint(1, 6)
-            self.velocity[0] = random.choice((-1, 1, -2, 2))
-            self.walk_cooldown = random.randint(7 * 60, 12 * 60)
-    
-    def auto_attack(self):
-        if self.mode != "attack" and pygame.sprite.collide_rect(King, self) and self.mode != "death":
-            self.walk = 0
-            self.velocity[0] = 0
-            self.dir = 1 if King.x > self.x else 0
-            self.attack = sum(self.animation["attack"].steps)
 
 class Golem(AnimatedSprite):
     def __init__(self, x=0, y=0, health=100):
@@ -188,27 +154,10 @@ class Golem(AnimatedSprite):
         self.walk_cooldown = 0
         self.add_animation(Animation("src/Golem/run.png", [10] * 8, 0, True, 160, 160, 0, 2), "walk")
         self.add_animation(Animation("src/Golem/run.png", [5] * 8, 0, True, 160, 160, 0, 2), "run")
-        self.add_animation(Animation("src/Golem/attack.png", [4] * 8, 0, True, 160, 160, 0, 2), "attack")
+        self.add_animation(Animation("src/Golem/attack.png", [3] * 8, 0, True, 160, 160, 0, 2), "attack")
         self.add_animation(Animation("src/Golem/damage.png", [2, 3, 3, 2], 0, False, 160, 160, 0, 2), "damage")
         self.add_animation(Animation("src/Golem/death.png", [3] * 10, 0, False, 160, 160, 0, 2), "death")
-    
-    def set_mode(self):
-        if self.damage:
-            self.mode = "damage"
-        elif self.attack:
-            self.mode = "attack"
-        elif self.walk:
-            self.mode = "walk"
-            self.walk -= 1
-            if self.walk == 0:
-                self.velocity[0] = 0
-        elif self.velocity[0]:
-            self.mode = "run"
-        elif self.death:
-            self.mode = "death"
-        else:
-            self.mode = "idle"
-    
+
     def update(self):
         super().update()
         self.set_mode()
@@ -217,39 +166,6 @@ class Golem(AnimatedSprite):
         if self.death == 90:
             for j in' '*10:
                 Coins.add(Coin(*self.rect.center))
-
-    def wander(self):
-        if self.mode != "death" and self.mode != "damage" and self.walk_cooldown == 0:
-            self.walk = 30 * random.randint(1, 6)
-            self.velocity[0] = random.choice((-1, 1, -2, 2))
-            self.walk_cooldown = random.randint(7 * 60, 12 * 60)
-    
-    def auto_attack(self):
-        if self.mode != "attack" and pygame.sprite.collide_rect(King, self) and self.mode != "death":
-            self.walk = 0
-            self.velocity[0] = 0
-            self.dir = 1 if King.x > self.x else 0
-            self.attack = sum(self.animation["attack"].steps)
-
-class AnimGroup:
-    def __init__(self):
-        self.__sprites = []
-
-    def update(self):
-        for i in self.__sprites:
-            i.update()
-            if i.death < 0:
-                self.__sprites.remove(i)
-    
-    def do(self, fun):
-        for i in self.__sprites:
-            exec(f"i.{fun}()")
-
-    def add(self, sprite):
-        self.__sprites.append(sprite)
-
-    def __iter__(self):
-        return iter(self.__sprites)
 
 class Coin:
     def __init__(self, x, y):
@@ -275,9 +191,6 @@ class Coin:
             self.death = -1
             King.coins += 1
         screen.blit(self.img, (self.x, self.y))
-        
-
-BLACK = (0, 0, 0)
 
 clock = pygame.time.Clock()
 FPS = 60
@@ -323,9 +236,9 @@ GGroup = AnimGroup()
 Coins = AnimGroup()
 # TM = TreeMonster(300, GROUND - TM_PADDING)
 TMGroup.add(TreeMonster(300, GROUND - TM_PADDING))
-TMGroup.add(TreeMonster(500, GROUND - TM_PADDING))
+# TMGroup.add(TreeMonster(500, GROUND - TM_PADDING))
 # TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
-GGroup.add(Golem(300, GROUND - G_PADDING))
+# GGroup.add(Golem(300, GROUND - G_PADDING))
 while run:
     clock.tick(FPS)
     # screen.fill((255, 255, 255))
