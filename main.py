@@ -1,4 +1,3 @@
-from typing import Any
 import pygame
 import random
 pygame.init()
@@ -113,6 +112,7 @@ class AnimatedSprite(pygame.sprite.Sprite):
         # print(self.x - self.imgsize[0] / 2, self.y - self.imgsize[1] / 2, self.imgsize[0], self.imgsize[1])
         self.image = self.animation[self.mode].image if self.dir else pygame.transform.flip(self.animation[self.mode].image.convert_alpha(), True, False)
         screen.blit(self.image, (self.x, self.y))
+        # pygame.draw.rect(screen, (0, 255, 0), self.rect)
 
     def add_animation(self, animation, mode):
         self.animation[mode] = animation
@@ -126,7 +126,7 @@ class Tile(pygame.sprite.Sprite):
         self.rect.topleft = (x, y)
 
 class TreeMonster(AnimatedSprite):
-    def __init__(self, x=0, y=0, health=100):
+    def __init__(self, x=0, y=0, health=40):
         super().__init__(Animation("src/TreeMonster/idle.png", [15] * 4, 0, True, 96, 96, 0, 2), x, y, health)
         # TM = AnimatedSprite(Animation("src/TreeMonster/idle.png", [15] * 4, 0, True, 96, 96, 0, 2), 300, GROUND - TM_PADDING)
         self.walk = 0
@@ -165,6 +165,58 @@ class TreeMonster(AnimatedSprite):
             Coins.add(Coin(*self.rect.center))
             Coins.add(Coin(*self.rect.center))
             Coins.add(Coin(*self.rect.center))
+
+    def wander(self):
+        if self.mode != "death" and self.mode != "damage" and self.walk_cooldown == 0:
+            self.walk = 30 * random.randint(1, 6)
+            self.velocity[0] = random.choice((-1, 1, -2, 2))
+            self.walk_cooldown = random.randint(7 * 60, 12 * 60)
+    
+    def auto_attack(self):
+        if self.mode != "attack" and pygame.sprite.collide_rect(King, self) and self.mode != "death":
+            self.walk = 0
+            self.velocity[0] = 0
+            self.dir = 1 if King.x > self.x else 0
+            self.attack = sum(self.animation["attack"].steps)
+
+class Golem(AnimatedSprite):
+    def __init__(self, x=0, y=0, health=100):
+        super().__init__(Animation("src/Golem/idle.png", [10] * 6, 0, True, 160, 160, 0, 2), x, y, health)
+        self.walk = 0
+        self.damage = 0
+        self.imgsize = (60, 88)
+        self.walk_cooldown = 0
+        self.add_animation(Animation("src/Golem/run.png", [10] * 8, 0, True, 160, 160, 0, 2), "walk")
+        self.add_animation(Animation("src/Golem/run.png", [5] * 8, 0, True, 160, 160, 0, 2), "run")
+        self.add_animation(Animation("src/Golem/attack.png", [4] * 8, 0, True, 160, 160, 0, 2), "attack")
+        self.add_animation(Animation("src/Golem/damage.png", [2, 3, 3, 2], 0, False, 160, 160, 0, 2), "damage")
+        self.add_animation(Animation("src/Golem/death.png", [3] * 10, 0, False, 160, 160, 0, 2), "death")
+    
+    def set_mode(self):
+        if self.damage:
+            self.mode = "damage"
+        elif self.attack:
+            self.mode = "attack"
+        elif self.walk:
+            self.mode = "walk"
+            self.walk -= 1
+            if self.walk == 0:
+                self.velocity[0] = 0
+        elif self.velocity[0]:
+            self.mode = "run"
+        elif self.death:
+            self.mode = "death"
+        else:
+            self.mode = "idle"
+    
+    def update(self):
+        super().update()
+        self.set_mode()
+        if self.walk_cooldown:
+            self.walk_cooldown -= 1
+        if self.death == 90:
+            for j in' '*10:
+                Coins.add(Coin(*self.rect.center))
 
     def wander(self):
         if self.mode != "death" and self.mode != "damage" and self.walk_cooldown == 0:
@@ -234,6 +286,7 @@ JUMPVEL = 8
 GRAVITY = 0.5
 KING_PADDING = 132
 TM_PADDING = 100
+G_PADDING = 243
 GROUND = SCREEN_SIZE[1] - 128 - KING_PADDING
 TILESIZE = 64
 King = AnimatedSprite(Animation("src/King/idle.png", [7] * 11, 0, True, 63, 58, 15), 100, GROUND)
@@ -266,11 +319,13 @@ Tile_Group.add(Tile("src/Tile/rightmiddle.png", (i + 1) * TILESIZE, GROUND + KIN
 
 run = True
 TMGroup = AnimGroup()
+GGroup = AnimGroup()
 Coins = AnimGroup()
 # TM = TreeMonster(300, GROUND - TM_PADDING)
 TMGroup.add(TreeMonster(300, GROUND - TM_PADDING))
 TMGroup.add(TreeMonster(500, GROUND - TM_PADDING))
-TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
+# TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
+GGroup.add(Golem(300, GROUND - G_PADDING))
 while run:
     clock.tick(FPS)
     # screen.fill((255, 255, 255))
@@ -296,6 +351,10 @@ while run:
                     if pygame.sprite.collide_rect(King, TM) and TM.mode != "death" and TM.mode != "damage":
                         TM.damage = sum(TM.animation["damage"].steps)
                         TM.health -= 10
+                for Gol in GGroup:
+                    if pygame.sprite.collide_rect(King, Gol) and Gol.mode != "death" and Gol.mode != "damage":
+                        Gol.damage = sum(Gol.animation["damage"].steps)
+                        Gol.health -= 10
                 King.attack = sum(King.attack_step)
         elif event.type == pygame.KEYUP:
             if event.key in (pygame.K_LEFT, pygame.K_a):
@@ -306,6 +365,9 @@ while run:
     TMGroup.update()
     TMGroup.do('wander')
     TMGroup.do('auto_attack')
+    GGroup.update()
+    GGroup.do('wander')
+    GGroup.do('auto_attack')
     King.update()
     Coins.update()
     Tile_Group.draw(screen)
