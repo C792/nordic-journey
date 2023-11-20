@@ -1,9 +1,12 @@
 import pygame
 import random
-from Animation import Animation, AnimGroup, ImageChanger
+from Animation import Animation, AnimGroup, Tile, TILESIZE
 pygame.init()
 
-SCREEN_SIZE = (960, 576)
+# SCREEN_SIZE = (960, 576)
+SCREEN_SIZE = (1200, 720)
+
+font = pygame.font.Font("src/neodgm.ttf", 40)
 
 screen = pygame.display.set_mode(SCREEN_SIZE)
 pygame.display.set_caption("Nordic Journey")
@@ -74,24 +77,19 @@ class AnimatedSprite(pygame.sprite.Sprite):
         self.animation[mode] = animation
         self.modes.append(mode)
 
-class Tile(pygame.sprite.Sprite):
-    def __init__(self, img, x, y):
-        super().__init__()
-        self.image = pygame.transform.scale(pygame.image.load(img).convert_alpha(), (TILESIZE, TILESIZE))
-        self.rect = self.image.get_rect()
-        self.rect.topleft = (x, y)
-
 class Mob(AnimatedSprite):
     def __init__(self, idle_animation, x=0, y=0, health=1):
         super().__init__(idle_animation, x, y, health)
+        self.knockback = 10
         self.walk = 0
         self.damage = 0
         self.walk_cooldown = 0
+        self.attack_cooldown = 0
 
     def set_mode(self):
         if self.damage:
             self.mode = "damage"
-        elif self.attack:
+        elif self.attack > self.attack_cooldown:
             self.mode = "attack"
         elif self.walk:
             self.mode = "walk"
@@ -107,6 +105,8 @@ class Mob(AnimatedSprite):
     
     def update(self):
         super().update()
+        if self.damage == 1:
+            self.x -= (1 if King.rect.centerx > self.rect.centerx else -1) * self.knockback
 
     def wander(self):
         if self.mode not in ["damage", "death", "attack"] and self.walk_cooldown == 0:
@@ -115,20 +115,16 @@ class Mob(AnimatedSprite):
             self.walk_cooldown = random.randint(7 * 60, 12 * 60)
     
     def auto_attack(self):
-        if self.mode != "attack" and pygame.sprite.collide_rect(King, self) and self.mode != "death":
+        if self.mode not in ["attack", "death"] and pygame.sprite.collide_rect(King, self) and self.attack == 0:
             self.walk = 0
             self.velocity[0] = 0
             self.dir = 1 if King.rect.centerx > self.rect.centerx else 0
-            self.attack = sum(self.animation["attack"].steps)
+            self.attack = sum(self.animation["attack"].steps) + self.attack_cooldown
 
 class TreeMonster(Mob):
     def __init__(self, x=0, y=0, health=40):
         super().__init__(Animation("src/TreeMonster/idle.png", [15] * 4, 0, True, 96, 96, 0, 2), x, y, health)
-        # TM = AnimatedSprite(Animation("src/TreeMonster/idle.png", [15] * 4, 0, True, 96, 96, 0, 2), 300, GROUND - TM_PADDING)
-        self.walk = 0
-        self.damage = 0
         self.imgsize = (49, 61)
-        self.walk_cooldown = 0
         self.add_animation(Animation("src/TreeMonster/run.png", [10] * 5, 0, True, 96, 96, 0, 2), "walk")
         self.add_animation(Animation("src/TreeMonster/run.png", [5] * 5, 0, True, 96, 96, 0, 2), "run")
         self.add_animation(Animation("src/TreeMonster/attack.png", [4] * 6, 0, True, 96, 96, 0, 2), "attack")
@@ -145,27 +141,46 @@ class TreeMonster(Mob):
             Coins.add(Coin(*self.rect.center))
             Coins.add(Coin(*self.rect.center))
 
-class Golem(AnimatedSprite):
+class Golem(Mob):
     def __init__(self, x=0, y=0, health=100):
         super().__init__(Animation("src/Golem/idle.png", [10] * 6, 0, True, 160, 160, 0, 2), x, y, health)
-        self.walk = 0
-        self.damage = 0
         self.imgsize = (60, 88)
-        self.walk_cooldown = 0
-        self.add_animation(Animation("src/Golem/run.png", [10] * 8, 0, True, 160, 160, 0, 2), "walk")
-        self.add_animation(Animation("src/Golem/run.png", [5] * 8, 0, True, 160, 160, 0, 2), "run")
-        self.add_animation(Animation("src/Golem/attack.png", [3] * 8, 0, True, 160, 160, 0, 2), "attack")
+        self.attack_cooldown = 120
+        self.add_animation(Animation("src/Golem/run.png", [12] * 8, 0, True, 160, 160, 0, 2), "walk")
+        self.add_animation(Animation("src/Golem/run.png", [8] * 8, 0, True, 160, 160, 0, 2), "run")
+        self.add_animation(Animation("src/Golem/attack.png", [5] * 8, 0, True, 160, 160, 0, 2), "attack")
         self.add_animation(Animation("src/Golem/damage.png", [2, 3, 3, 2], 0, False, 160, 160, 0, 2), "damage")
-        self.add_animation(Animation("src/Golem/death.png", [3] * 10, 0, False, 160, 160, 0, 2), "death")
+        self.add_animation(Animation("src/Golem/death.png", [5] * 10, 0, False, 160, 160, 0, 2), "death")
 
     def update(self):
         super().update()
         self.set_mode()
         if self.walk_cooldown:
             self.walk_cooldown -= 1
+        if self.mode == "damage": self.attack = self.attack_cooldown
         if self.death == 90:
             for j in' '*10:
                 Coins.add(Coin(*self.rect.center))
+
+class Effect(AnimatedSprite):
+    def __init__(self, animation, x, y):
+        super().__init__(animation, x, y)
+        self.add_animation(animation, "death")
+        self.mode = "death"
+        self.death = sum(self.animation["death"].steps)
+
+    def update(self):
+        self.animation[self.mode].update()
+        self.death -= 1
+        if self.death == 0: return
+        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 1.6,
+                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.6,
+                                self.imgsize[0] * 3.2,
+                                self.imgsize[1] * 3.2)
+        # print(self.x - self.imgsize[0] / 2, self.y - self.imgsize[1] / 2, self.imgsize[0], self.imgsize[1])
+        self.image = self.animation[self.mode].image
+        print(self.animation[self.mode].step_idx, self.animation[self.mode].current_frame)
+        screen.blit(self.image, (self.x, self.y))
 
 class Coin:
     def __init__(self, x, y):
@@ -184,13 +199,13 @@ class Coin:
         self.velocity[0] *= 0.99
         self.rect = self.img.get_rect()
         self.rect.topleft = (self.x, self.y)
-        # if collide with Tile_Group then stop
         if pygame.sprite.spritecollide(self, Tile_Group, False):
             self.velocity = [0, 0]
         if pygame.sprite.collide_rect(self, King):
             self.death = -1
             King.coins += 1
         screen.blit(self.img, (self.x, self.y))
+
 
 clock = pygame.time.Clock()
 FPS = 60
@@ -201,17 +216,27 @@ KING_PADDING = 132
 TM_PADDING = 100
 G_PADDING = 243
 GROUND = SCREEN_SIZE[1] - 128 - KING_PADDING
-TILESIZE = 64
-King = AnimatedSprite(Animation("src/King/idle.png", [7] * 11, 0, True, 63, 58, 15), 100, GROUND)
+King = AnimatedSprite(Animation("src/King/idle.png", [7] * 11, 0, True, 63, 58, 15), 10, GROUND)
 King.add_animation(Animation("src/King/run.png", [6] * 8, 0, True, 63, 58, 15), "run")
 King.add_animation(Animation("src/King/jump.png", [JUMPVEL//GRAVITY, JUMPVEL//GRAVITY], 0, False, 63, 58), "jump")
-King.attack_step = [5, 5, 2]
-King.add_animation(Animation("src/King/attack.png", King.attack_step, 0, False, 78, 58, 0), "attack")
+King.add_animation(Animation("src/King/attack.png", [5, 5, 2], 0, False, 78, 58, 0), "attack")
+King.add_animation(Animation("src/King/damage.png", [6] * 2, 0, True, 63, 58, 15), "damage")
 King.imgsize = (45, 26)
 King.coins = 0
+King.dash = 0
 
 def King_mode(King):
-    if King.attack:
+    for mob in GGroup:
+        if mob.mode == 'attack' and mob.animation['attack'].step_idx == 5 and mob.animation['attack'].current_frame == 1:
+            King.health -= 20
+            King.damage = 2 * sum(King.animation["damage"].steps)
+    for mob in TMGroup:
+        if mob.mode == 'attack' and mob.animation['attack'].step_idx == 3 and mob.animation['attack'].current_frame == 1:
+            King.health -= 5
+            King.damage = 3 * sum(King.animation["damage"].steps) // 2
+    if King.damage:
+        King.mode = "damage"
+    elif King.attack:
         King.mode = "attack"
     elif King.jump:
         King.mode = "jump"
@@ -222,9 +247,11 @@ def King_mode(King):
 
 
 Tile_Group = pygame.sprite.Group()
+Tile_Group.add(Tile("src/coin.png", 16, 16, 16 * 3, 13 * 3))
+Tile_Group.add(Tile("src/heart.png", 18, 64, 11 * 4, 11 * 4))
 Tile_Group.add(Tile("src/Tile/lefttop.png", 0, GROUND + KING_PADDING))
 Tile_Group.add(Tile("src/Tile/leftmiddle.png", 0, GROUND + KING_PADDING + TILESIZE))
-for i in range(1, 14):
+for i in range(1, 18):
     Tile_Group.add(Tile("src/Tile/middletop.png", i * TILESIZE, GROUND + KING_PADDING))
     Tile_Group.add(Tile("src/Tile/middlemiddle.png", i * TILESIZE, GROUND + KING_PADDING + TILESIZE))
 Tile_Group.add(Tile("src/Tile/righttop.png", (i + 1) * TILESIZE, GROUND + KING_PADDING))
@@ -234,8 +261,9 @@ run = True
 TMGroup = AnimGroup()
 GGroup = AnimGroup()
 Coins = AnimGroup()
-# TM = TreeMonster(300, GROUND - TM_PADDING)
-TMGroup.add(TreeMonster(300, GROUND - TM_PADDING))
+Effects = AnimGroup()
+# Effects.add(Effect(Animation("src/Effects/dash.png", [10] * 5, 0, False, 48, 32), 300, GROUND - TM_PADDING))
+# TMGroup.add(TreeMonster(300, GROUND - TM_PADDING))
 # TMGroup.add(TreeMonster(500, GROUND - TM_PADDING))
 # TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
 # GGroup.add(Golem(300, GROUND - G_PADDING))
@@ -250,6 +278,8 @@ while run:
         if event.type == pygame.QUIT:
             run = False
         if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_0:
+                Effects.add(Effect(Animation("src/Effects/dash1.png", [3]*7, 0, False, 64, 32), King.x, (King.y + King.rect.centery) // 2))
             if event.key == pygame.K_ESCAPE:
                 run = False
             elif event.key in (pygame.K_LEFT, pygame.K_a):
@@ -268,7 +298,7 @@ while run:
                     if pygame.sprite.collide_rect(King, Gol) and Gol.mode != "death" and Gol.mode != "damage":
                         Gol.damage = sum(Gol.animation["damage"].steps)
                         Gol.health -= 10
-                King.attack = sum(King.attack_step)
+                King.attack = sum(King.animation["attack"].steps)
         elif event.type == pygame.KEYUP:
             if event.key in (pygame.K_LEFT, pygame.K_a):
                 King.velocity[0] += VELOCITY
@@ -282,8 +312,11 @@ while run:
     GGroup.do('wander')
     GGroup.do('auto_attack')
     King.update()
+    Effects.update()
     Coins.update()
     Tile_Group.draw(screen)
+    screen.blit(font.render(f"{King.coins}", True, (255, 255, 255)), (74, 18))
+    screen.blit(font.render(f"{King.health}", True, (255, 255, 255)), (72, 66))
     pygame.display.update()
 
 
