@@ -1,4 +1,5 @@
 import pygame
+import random
 
 BLACK = (0, 0, 0)
 
@@ -65,3 +66,11 @@ class AnimGroup:
 
     def __iter__(self):
         return iter(self.__sprites)
+
+TILESIZE = 64
+class Tile(pygame.sprite.Sprite):
+    def __init__(self, img, x, y, szx = TILESIZE, szy = TILESIZE):
+        super().__init__()
+        self.image = pygame.transform.scale(pygame.image.load(img).convert_alpha(), (szx, szy))
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
