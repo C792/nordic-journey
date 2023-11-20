@@ -67,6 +67,12 @@ class AnimGroup:
     def __iter__(self):
         return iter(self.__sprites)
 
+    def __len__(self):
+        return len(self.__sprites)
+    
+    def __getitem__(self, key):
+        return self.__sprites[key]
+
 TILESIZE = 64
 class Tile(pygame.sprite.Sprite):
     def __init__(self, img, x, y, szx = TILESIZE, szy = TILESIZE):

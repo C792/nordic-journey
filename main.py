@@ -22,6 +22,9 @@ class AnimatedSprite(pygame.sprite.Sprite):
         self.attack = 0
         self.damage = 0
         self.death = 0
+        self.enter = 0
+        self.dash = 0
+        self.kp = 0
         self.health = health
         self.dir = 1
         self.modes = ['idle']
@@ -35,7 +38,26 @@ class AnimatedSprite(pygame.sprite.Sprite):
             if mode != self.mode:
                 self.animation[mode].reset()
         self.x += self.velocity[0]
+        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 1.6,
+                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.6,
+                                self.imgsize[0] * 3.1,
+                                self.imgsize[1] * 3)
+        for i in Tile_Group:
+            if pygame.sprite.collide_rect(self, i):
+                self.x -= self.velocity[0]
+                break
+        
         self.y += self.velocity[1]
+        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 1.6,
+                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.6,
+                                self.imgsize[0] * 3.1,
+                                self.imgsize[1] * 3)
+        for i in Tile_Group:
+            if pygame.sprite.collide_rect(self, i):
+                self.y -= self.velocity[1]
+                self.velocity[1] = 0
+                break
+        
         self.animation[self.mode].update()
         if self.velocity[0] < 0:
             self.dir = 0
@@ -47,10 +69,10 @@ class AnimatedSprite(pygame.sprite.Sprite):
         else:
             self.jump = 0
             self.velocity[1] = 0
-        if self.y > GROUND:
-            self.y = GROUND
-            self.velocity[1] = 0
-            self.jump = 0
+        # if self.y > GROUND:
+        #     self.y = GROUND
+        #     self.velocity[1] = 0
+        #     self.jump = 0
         if self.attack:
             self.attack -= 1
         if self.damage:
@@ -64,10 +86,20 @@ class AnimatedSprite(pygame.sprite.Sprite):
             if self.death == 0:
                 self.death -= 1
                 return
+        if self.enter > 0:
+            self.enter -= 1
+        if self.kp == 0:
+            self.velocity[0] = 0
+            self.dash = 0
+
+        if self.dash > 0:
+            self.dash -= 1
+            if self.dash in (20, 15, 12, 10):
+                self.velocity[0] -= (VELOCITY if King.dir else -VELOCITY)
         self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 1.6,
                                 self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.6,
-                                self.imgsize[0] * 3.2,
-                                self.imgsize[1] * 3.2)
+                                self.imgsize[0] * 3.1,
+                                self.imgsize[1] * 3)
         # print(self.x - self.imgsize[0] / 2, self.y - self.imgsize[1] / 2, self.imgsize[0], self.imgsize[1])
         self.image = self.animation[self.mode].image if self.dir else pygame.transform.flip(self.animation[self.mode].image.convert_alpha(), True, False)
         screen.blit(self.image, (self.x, self.y))
@@ -178,8 +210,8 @@ class Effect(AnimatedSprite):
                                 self.imgsize[0] * 3.2,
                                 self.imgsize[1] * 3.2)
         # print(self.x - self.imgsize[0] / 2, self.y - self.imgsize[1] / 2, self.imgsize[0], self.imgsize[1])
-        self.image = self.animation[self.mode].image
-        print(self.animation[self.mode].step_idx, self.animation[self.mode].current_frame)
+        self.image = self.animation[self.mode].image if King.dir else pygame.transform.flip(self.animation[self.mode].image.convert_alpha(), True, False)
+        # print(self.animation[self.mode].step_idx, self.animation[self.mode].current_frame)
         screen.blit(self.image, (self.x, self.y))
 
 class Coin:
@@ -206,6 +238,39 @@ class Coin:
             King.coins += 1
         screen.blit(self.img, (self.x, self.y))
 
+class Door(AnimatedSprite):
+    def __init__(self, x, y):
+        super().__init__(Animation("src/Door/idle.png", [1], 0, True, 46, 56), x, y)
+        self.imgsize = (46, 56)
+        self.add_animation(Animation("src/Door/open.png", [10] * 5, 0, True, 46, 56), "open")
+        self.add_animation(Animation("src/Door/close.png", [10] * 3, 0, True, 46, 56), "close")
+        self.mode = "idle"
+        self.open = 0
+        self.close = 0
+
+    def update(self):
+        for mode in self.modes:
+            if mode != self.mode:
+                self.animation[mode].reset()
+        self.animation[self.mode].update()
+        if self.open:
+            self.mode = "open"
+            self.open -= 1
+            if self.open == 0:
+                self.mode = "close"
+                self.close = sum(self.animation["close"].steps)
+        elif self.close:
+            self.close -= 1
+            if self.close == 0:
+                self.mode = "idle"
+            
+        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 1.6,
+                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.6,
+                                self.imgsize[0] * 3.2,
+                                self.imgsize[1] * 3.2)
+        self.image = self.animation[self.mode].image
+        screen.blit(self.image, (self.x, self.y))
+        # pygame.draw.rect(screen, (0, 255, 0), self.rect)
 
 clock = pygame.time.Clock()
 FPS = 60
@@ -213,14 +278,18 @@ VELOCITY = 4
 JUMPVEL = 8
 GRAVITY = 0.5
 KING_PADDING = 132
-TM_PADDING = 100
+TM_PADDING = 102
 G_PADDING = 243
 GROUND = SCREEN_SIZE[1] - 128 - KING_PADDING
+Doors = AnimGroup()
+Dooridx = -1
 King = AnimatedSprite(Animation("src/King/idle.png", [7] * 11, 0, True, 63, 58, 15), 10, GROUND)
 King.add_animation(Animation("src/King/run.png", [6] * 8, 0, True, 63, 58, 15), "run")
 King.add_animation(Animation("src/King/jump.png", [JUMPVEL//GRAVITY, JUMPVEL//GRAVITY], 0, False, 63, 58), "jump")
 King.add_animation(Animation("src/King/attack.png", [5, 5, 2], 0, False, 78, 58, 0), "attack")
 King.add_animation(Animation("src/King/damage.png", [6] * 2, 0, True, 63, 58, 15), "damage")
+King.add_animation(Animation("src/King/enter.png", [6] * 8 + [30 + 30], 0, False, 63, 58, 15), "enter")
+King.add_animation(Animation("src/King/exit.png", [6] * 8, 0, False, 63, 58, 15), "exit")
 King.imgsize = (45, 26)
 King.coins = 0
 King.dash = 0
@@ -238,6 +307,10 @@ def King_mode(King):
         King.mode = "damage"
     elif King.attack:
         King.mode = "attack"
+    elif King.enter:
+        King.mode = "enter"
+        if King.enter == 1:
+            stagechange()
     elif King.jump:
         King.mode = "jump"
     elif King.velocity[0]:
@@ -245,6 +318,26 @@ def King_mode(King):
     else:
         King.mode = "idle"
 
+def stagechange():
+    global menuidx
+    global Doors
+    global Dooridx
+    if Dooridx == 1:
+        menuidx = 1
+        Doors = AnimGroup()
+        Doors.add(Door(1000, GROUND - 34))
+        if Stage_no == 0:
+            TMGroup.add(TreeMonster(300, GROUND - TM_PADDING))
+            TMGroup.add(TreeMonster(500, GROUND - TM_PADDING))
+            TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
+    elif Dooridx == -1:
+        menuidx = 0
+        Doors = AnimGroup()
+        Doors.add(Door(600, GROUND - 34))
+        # Doors.add(Door(800, GROUND - 34))
+        # Doors.add(Door(1000, GROUND - 34))
+    King.x, King.y = 10, GROUND
+    Dooridx = -1
 
 Tile_Group = pygame.sprite.Group()
 Tile_Group.add(Tile("src/coin.png", 16, 16, 16 * 3, 13 * 3))
@@ -263,10 +356,11 @@ GGroup = AnimGroup()
 Coins = AnimGroup()
 Effects = AnimGroup()
 # Effects.add(Effect(Animation("src/Effects/dash.png", [10] * 5, 0, False, 48, 32), 300, GROUND - TM_PADDING))
-# TMGroup.add(TreeMonster(300, GROUND - TM_PADDING))
-# TMGroup.add(TreeMonster(500, GROUND - TM_PADDING))
-# TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
 # GGroup.add(Golem(300, GROUND - G_PADDING))
+MENU = ['main', 'stage', 'boss', 'shop', 'option']
+menuidx = 0
+Stage_no = 0
+stagechange()
 while run:
     clock.tick(FPS)
     # screen.fill((255, 255, 255))
@@ -277,46 +371,62 @@ while run:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_0:
-                Effects.add(Effect(Animation("src/Effects/dash1.png", [3]*7, 0, False, 64, 32), King.x, (King.y + King.rect.centery) // 2))
+        if event.type == pygame.KEYDOWN and King.mode not in ['enter', 'exit']:
             if event.key == pygame.K_ESCAPE:
                 run = False
-            elif event.key in (pygame.K_LEFT, pygame.K_a):
+            elif event.key == pygame.K_d and King.dash == 0:
+                Effects.add(Effect(Animation("src/Effects/dash1.png", [3] * 7, 0, False, 64, 32), King.x, (King.y + King.rect.centery) // 2 + 1))
+                King.velocity[0] *= 5
+                King.dash = 30
+            elif event.key in (pygame.K_LEFT,):
+                King.kp = 1
                 King.velocity[0] += -VELOCITY
-            elif event.key in (pygame.K_RIGHT, pygame.K_d):
+            elif event.key in (pygame.K_RIGHT,):
+                King.kp = 1
                 King.velocity[0] += VELOCITY
             elif event.key in (pygame.K_UP, pygame.K_SPACE) and not King.jump:
                 King.velocity[1] += -JUMPVEL
                 King.jump = JUMPVEL//GRAVITY*2
-            elif event.key == pygame.K_f and not King.attack:
-                for TM in TMGroup:
-                    if pygame.sprite.collide_rect(King, TM) and TM.mode != "death" and TM.mode != "damage":
-                        TM.damage = sum(TM.animation["damage"].steps)
-                        TM.health -= 10
-                for Gol in GGroup:
-                    if pygame.sprite.collide_rect(King, Gol) and Gol.mode != "death" and Gol.mode != "damage":
-                        Gol.damage = sum(Gol.animation["damage"].steps)
-                        Gol.health -= 10
-                King.attack = sum(King.animation["attack"].steps)
+            elif event.key == pygame.K_z and not King.attack:
+                if MENU[menuidx] == 'stage':
+                    for TM in TMGroup:
+                        if pygame.sprite.collide_rect(King, TM) and TM.mode != "death" and TM.mode != "damage":
+                            TM.damage = sum(TM.animation["damage"].steps)
+                            TM.health -= 10
+                    for Gol in GGroup:
+                        if pygame.sprite.collide_rect(King, Gol) and Gol.mode != "death" and Gol.mode != "damage":
+                            Gol.damage = sum(Gol.animation["damage"].steps)
+                            Gol.health -= 10
+                    King.attack = sum(King.animation["attack"].steps)
+                elif MENU[menuidx] == 'main':
+                    for d in Doors:
+                        if pygame.sprite.collide_rect(King, d) and d.mode == "idle":
+                            d.mode = "open"
+                            d.open = sum(d.animation["open"].steps)
+                            King.mode = "enter"
+                            King.enter = sum(King.animation["enter"].steps)
+                            King.x = d.x - (30 if King.dir else 20)
+                            Dooridx = 1
+                            break
         elif event.type == pygame.KEYUP:
-            if event.key in (pygame.K_LEFT, pygame.K_a):
-                King.velocity[0] += VELOCITY
-            elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                King.velocity[0] -= VELOCITY
-    King_mode(King)
-    TMGroup.update()
-    TMGroup.do('wander')
-    TMGroup.do('auto_attack')
-    GGroup.update()
-    GGroup.do('wander')
-    GGroup.do('auto_attack')
-    King.update()
-    Effects.update()
-    Coins.update()
+            if event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                King.kp = 0
+            
     Tile_Group.draw(screen)
+    if MENU[menuidx] == 'stage':
+        TMGroup.update()
+        TMGroup.do('wander')
+        TMGroup.do('auto_attack')
+        GGroup.update()
+        GGroup.do('wander')
+        GGroup.do('auto_attack')
+    Coins.update()
     screen.blit(font.render(f"{King.coins}", True, (255, 255, 255)), (74, 18))
     screen.blit(font.render(f"{King.health}", True, (255, 255, 255)), (72, 66))
+    if MENU[menuidx] == 'main': Doors.update()
+    King_mode(King)
+    King.update()
+    Effects.update()
     pygame.display.update()
 
 
