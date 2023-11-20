@@ -117,6 +117,7 @@ class Mob(AnimatedSprite):
         self.damage = 0
         self.walk_cooldown = 0
         self.attack_cooldown = 0
+        self.kp = 1
 
     def set_mode(self):
         if self.damage:
@@ -144,7 +145,7 @@ class Mob(AnimatedSprite):
         if self.mode not in ["damage", "death", "attack"] and self.walk_cooldown == 0:
             self.walk = 30 * random.randint(1, 6)
             self.velocity[0] = random.choice((-1, 1, -2, 2))
-            self.walk_cooldown = random.randint(7 * 60, 12 * 60)
+            self.walk_cooldown = random.randint(5 * 60, 10 * 60)
     
     def auto_attack(self):
         if self.mode not in ["attack", "death"] and pygame.sprite.collide_rect(King, self) and self.attack == 0:
@@ -374,7 +375,7 @@ while run:
         if event.type == pygame.KEYDOWN and King.mode not in ['enter', 'exit']:
             if event.key == pygame.K_ESCAPE:
                 run = False
-            elif event.key == pygame.K_d and King.dash == 0:
+            elif event.key == pygame.K_d and King.dash == 0 and King.velocity[0]:
                 Effects.add(Effect(Animation("src/Effects/dash1.png", [3] * 7, 0, False, 64, 32), King.x, (King.y + King.rect.centery) // 2 + 1))
                 King.velocity[0] *= 5
                 King.dash = 30
