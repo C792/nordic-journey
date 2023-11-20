@@ -1,17 +1,17 @@
 ## make
-1. main menu
+~~main menu~~
 1. character death
 1. barrier using tile
 1. Shop
 
 ## class
 ~~TM class~~
-1. stage class
+~~stage class~~
 1. Boss class
 
 ## utility
-1. stage change
-1. show health
+~~stage change~~
+~~show health~~
 1. money system
 1. Upgrade at shop
 
