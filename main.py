@@ -284,7 +284,7 @@ class Boss(Mob):
                                 self.imgsize[1] * 2.2)
         # print(self.x - self.imgsize[0] / 2, self.y - self.imgsize[1] / 2, self.imgsize[0], self.imgsize[1])
         self.image = self.animation[self.mode].image if self.dir else pygame.transform.flip(self.animation[self.mode].image.convert_alpha(), True, False)
-        pygame.draw.rect(screen, (0, 255, 0), self.rect)
+        # pygame.draw.rect(screen, (0, 255, 0), self.rect)
         screen.blit(self.image, (self.x, self.y))
         self.set_mode()
         if self.death > 40 and self.mode == "death": FPS = 10
@@ -483,12 +483,12 @@ def stagechange():
             TMGroup.add(TreeMonster(900, GROUND - TM_PADDING))
         elif Stage_no == 2:
             BGroup.add(Boss(600, GROUND - 198))
-            # TMGroup.add(TreeMonster(250, GROUND - TM_PADDING))
-            # TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
-            # TMGroup.add(TreeMonster(700, GROUND - TM_PADDING))
-            # TMGroup.add(TreeMonster(800, GROUND - TM_PADDING))
-            # GGroup.add(Golem(450, GROUND - G_PADDING))
-            # GGroup.add(Golem(900, GROUND - G_PADDING))
+            TMGroup.add(TreeMonster(250, GROUND - TM_PADDING))
+            TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
+            TMGroup.add(TreeMonster(700, GROUND - TM_PADDING))
+            TMGroup.add(TreeMonster(800, GROUND - TM_PADDING))
+            GGroup.add(Golem(450, GROUND - G_PADDING))
+            GGroup.add(Golem(900, GROUND - G_PADDING))
             
     elif Dooridx == -1:
         menuidx = 0
