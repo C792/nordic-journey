@@ -593,7 +593,7 @@ while run:
                 King.kp = 0
     Tile_Group.draw(screen)
     screen.blit(font.render(f"{King.coins}", True, (255, 255, 255)), (74, 18))
-    screen.blit(font.render(f"{King.health}", True, (255, 255, 255)), (72, 66))
+    screen.blit(font.render(f"{max(0, King.health)}", True, (255, 255, 255)), (72, 66))
     if MENU[menuidx] == 'shop':
         Healthupgrade.draw(screen)
         Speedupgrade. draw(screen)
