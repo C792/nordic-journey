@@ -207,7 +207,7 @@ class Boss(Mob):
     def __init__(self, x=0, y=0, health=500):
         super().__init__(Animation('./src/Boss/idle.png', [10] * 6, 0, True, 192, 128, 0, 3), x, y, health)
         self.imgsize = (192, 128)
-        self.add_animation(Animation('./src/Boss/run.png', [10] * 10, 0, True, 192, 128, 0, 3), 'walk')
+        self.add_animation(Animation('./src/Boss/run.png', [7] * 10, 0, True, 192, 128, 0, 3), 'walk')
         self.add_animation(Animation('./src/Boss/run.png', [5] * 10, 0, True, 192, 128, 0, 3), 'run')
         self.add_animation(Animation('./src/Boss/attack.png', [6] * 14, 0, True, 192, 128, 0, 3), 'attack')
         self.add_animation(Animation('./src/Boss/damage.png', [3] * 7, 0, False, 192, 128, 0, 3), 'damage')
@@ -220,20 +220,20 @@ class Boss(Mob):
             if mode != self.mode:
                 self.animation[mode].reset()
         self.x += self.velocity[0]
-        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 1.6,
-                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.6,
-                                self.imgsize[0] * 3.1,
-                                self.imgsize[1] * 3)
+        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 0.75,
+                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.12,
+                                self.imgsize[0] * 1.5,
+                                self.imgsize[1] * 2.2)
         for i in Tile_Group:
             if pygame.sprite.collide_rect(self, i):
                 self.x -= self.velocity[0]
                 break
         
         self.y += self.velocity[1]
-        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 1.6,
-                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.6,
-                                self.imgsize[0] * 3.1,
-                                self.imgsize[1] * 3)
+        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 0.75,
+                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.12,
+                                self.imgsize[0] * 1.5,
+                                self.imgsize[1] * 2.2)
         for i in Tile_Group:
             if pygame.sprite.collide_rect(self, i):
                 self.y -= self.velocity[1]
@@ -278,14 +278,14 @@ class Boss(Mob):
             self.dash -= 1
             if self.dash in (20, 15, 12, 10):
                 self.velocity[0] -= (DASH_SPEED if King.dir else -DASH_SPEED)
-        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 1.6,
-                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.6,
-                                self.imgsize[0] * 3.1,
-                                self.imgsize[1] * 3)
+        self.rect = pygame.Rect(self.x + self.image.get_width()  / 2 - self.imgsize[0] * 0.75,
+                                self.y + self.image.get_height() / 2 - self.imgsize[1] * 1.12,
+                                self.imgsize[0] * 1.5,
+                                self.imgsize[1] * 2.2)
         # print(self.x - self.imgsize[0] / 2, self.y - self.imgsize[1] / 2, self.imgsize[0], self.imgsize[1])
         self.image = self.animation[self.mode].image if self.dir else pygame.transform.flip(self.animation[self.mode].image.convert_alpha(), True, False)
+        pygame.draw.rect(screen, (0, 255, 0), self.rect)
         screen.blit(self.image, (self.x, self.y))
-        # pygame.draw.rect(screen, (0, 255, 0), self.rect)
         self.set_mode()
         if self.death > 40 and self.mode == "death": FPS = 10
         else: FPS = 60
@@ -337,6 +337,7 @@ class Coin:
         self.rect = self.img.get_rect()
         self.rect.topleft = (self.x, self.y)
         if pygame.sprite.spritecollide(self, Tile_Group, False):
+            self.y -= self.velocity[1] - GRAVITY
             self.velocity = [0, 0]
         if pygame.sprite.collide_rect(self, King):
             self.death = -1
@@ -397,6 +398,10 @@ CLEAR = False
 RETURNHOME = 0
 Doors = AnimGroup()
 Dooridx = -1
+
+Bird = AnimatedSprite(Animation("./src/Bird/idle.png", [34] * 2, 0, True, 28, 18, 0), SCREEN_SIZE[0] * 10, 120)
+Bird.clickcount = 0
+
 King = AnimatedSprite(Animation("./src/King/idle.png", [7] * 11, 0, True, 63, 58, 15), 10, GROUND)
 King.add_animation(Animation("./src/King/run.png", [6] * 8, 0, True, 63, 58, 15), "run")
 King.add_animation(Animation("./src/King/jump.png", [JUMPVEL//GRAVITY, JUMPVEL//GRAVITY], 0, False, 63, 58), "jump")
@@ -431,7 +436,7 @@ def King_mode(King):
         if boss.mode == 'attack' and boss.animation['attack'].step_idx == 7 and boss.animation['attack'].current_frame == 1:
             King.health -= 50
             King.damage = 3 * sum(King.animation["damage"].steps)
-            King.hitbyboss = 50 * (1 if King.rect.centerx > mob.rect.centerx else -1)
+            King.hitbyboss = 50 * (1 if King.rect.centerx > boss.rect.centerx else -1)
     if King.damage:
         King.mode = "damage"
         if King.hitbyboss:
@@ -478,12 +483,12 @@ def stagechange():
             TMGroup.add(TreeMonster(900, GROUND - TM_PADDING))
         elif Stage_no == 2:
             BGroup.add(Boss(600, GROUND - 198))
-            TMGroup.add(TreeMonster(250, GROUND - TM_PADDING))
-            TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
-            TMGroup.add(TreeMonster(700, GROUND - TM_PADDING))
-            TMGroup.add(TreeMonster(800, GROUND - TM_PADDING))
-            GGroup.add(Golem(450, GROUND - G_PADDING))
-            GGroup.add(Golem(900, GROUND - G_PADDING))
+            # TMGroup.add(TreeMonster(250, GROUND - TM_PADDING))
+            # TMGroup.add(TreeMonster(400, GROUND - TM_PADDING))
+            # TMGroup.add(TreeMonster(700, GROUND - TM_PADDING))
+            # TMGroup.add(TreeMonster(800, GROUND - TM_PADDING))
+            # GGroup.add(Golem(450, GROUND - G_PADDING))
+            # GGroup.add(Golem(900, GROUND - G_PADDING))
             
     elif Dooridx == -1:
         menuidx = 0
@@ -656,6 +661,16 @@ while run:
             BGroup = AnimGroup()
             stagechange()
 
+    if MENU[menuidx] != 'shop':
+        Bird.update()
+        Bird.x -= 3
+        if Bird.x < -50:
+            Bird.x = SCREEN_SIZE[0] * random.randint(4, 8)
+        Bird.rect = pygame.Rect(Bird.x + 14, Bird.y + 9, 28 * 2, 18 * 2)
+        if Bird.clickcount: Bird.clickcount -= 1
+        if pygame.mouse.get_pressed()[0] and Bird.rect.collidepoint(pygame.mouse.get_pos()) and Bird.clickcount == 0:
+            Coins.add(Coin(*Bird.rect.center))
+            Bird.clickcount = 6
     Coins.update()
     if MENU[menuidx] == 'main':
         Doors.update()
@@ -663,6 +678,7 @@ while run:
     King_mode(King)
     King.update()
     Effects.update()
+
     pygame.display.update()
 
 
