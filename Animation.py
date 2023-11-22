@@ -11,6 +11,8 @@ class ImageChanger:
         image = pygame.Surface((width, height)).convert_alpha()
         if dir == 2:image.blit(self.img, (0, 0), (0, (frame * (height + padding)), width, height))
         else: image.blit(self.img, (0, 0), ((frame * (width + padding)), 0, width, height))
+        if dir == 3:
+            image = pygame.transform.flip(image, True, False)
         image = pygame.transform.scale(image, (width * scale, height * scale))
         image.set_colorkey(color)
 
@@ -80,3 +82,24 @@ class Tile(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(pygame.image.load(img).convert_alpha(), (szx, szy))
         self.rect = self.image.get_rect()
         self.rect.topleft = (x, y)
+
+class Button(pygame.sprite.Sprite):
+    def __init__(self, img, x, y, szx, szy):
+        super().__init__()
+        self.image = pygame.transform.scale(pygame.image.load(img).convert_alpha(), (szx, szy))
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
+        self.clicked = False
+        self.click_cooldown = 0
+
+    def draw(self, surface):
+        pos = pygame.mouse.get_pos()
+        if self.rect.collidepoint(pos):
+            if pygame.mouse.get_pressed()[0] == 1 and self.clicked == False and self.click_cooldown == 0:
+                self.clicked = True
+                self.click_cooldown = 7
+        if pygame.mouse.get_pressed()[0] == 0:
+            self.clicked = False
+        if self.click_cooldown:
+            self.click_cooldown -= 1
+        surface.blit(self.image, (self.rect.x, self.rect.y))
