@@ -520,8 +520,9 @@ def stagechange():
     global Doors
     global Dooridx
     if Dooridx == 1:
-        BG.stop()
-        Battle.play(-1)
+        if not CLEAR:
+            BG.stop()
+            Battle.play(-1)
         menuidx = 1
         Doors = AnimGroup()
         Doors.add(Door(1000, GROUND - 34))
