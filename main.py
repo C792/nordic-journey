@@ -554,6 +554,7 @@ def stagechange():
     elif Dooridx == -1:
         Battle.stop()
         BG.stop()
+        Victory.stop()
         if CLEAR:
             Victory.play(-1)
         else:
