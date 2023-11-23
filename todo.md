@@ -14,7 +14,8 @@
 ~~show health~~
 ~~money system~~
 ~~Upgrade at shop~~
+1. slash skill
+1. thump skill
 
 ## Goal
 ~~Final Boss~~
-1. 
