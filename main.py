@@ -11,6 +11,28 @@ smallfont = pygame.font.Font("./src/neodgm.ttf", 25)
 
 screen = pygame.display.set_mode(SCREEN_SIZE)
 pygame.display.set_caption("Nordic Journey")
+BG = pygame.mixer.Sound("./src/Sounds/background.mp3")
+BG.set_volume(0.03)
+BG.play(-1)
+Thump = pygame.mixer.Sound("./src/Sounds/thump.wav")
+Thump.set_volume(0.03)
+Attack = pygame.mixer.Sound("./src/Sounds/hit.wav")
+Attack.set_volume(0.1)
+Coinsound = pygame.mixer.Sound("./src/Sounds/coin.wav")
+Coinsound.set_volume(0.03)
+COIN_PLAYING = False
+Buy = pygame.mixer.Sound("./src/Sounds/buy.wav")
+Buy.set_volume(0.05)
+Death = pygame.mixer.Sound("./src/Sounds/death.wav")
+Death.set_volume(0.08)
+Enter = pygame.mixer.Sound("./src/Sounds/enter.wav")
+Enter.set_volume(0.1)
+Victory = pygame.mixer.Sound("./src/Sounds/victory.mp3")
+Victory.set_volume(0.03)
+Dash = pygame.mixer.Sound("./src/Sounds/dash.wav")
+Dash.set_volume(0.03)
+Battle = pygame.mixer.Sound("./src/Sounds/battle.wav")
+Battle.set_volume(0.03)
 
 class AnimatedSprite(pygame.sprite.Sprite):
     def __init__(self, idle_animation = None, x = 0, y = 0, health = 100):
@@ -342,6 +364,8 @@ class Coin:
         if pygame.sprite.collide_rect(self, King):
             self.death = -1
             King.coins += 1
+            if not COIN_PLAYING:
+                Coinsound.play()
         if self.rect.right > SCREEN_SIZE[0]:
             self.x -= self.rect.right - SCREEN_SIZE[0]
         screen.blit(self.img, (self.x, self.y))
@@ -380,6 +404,9 @@ class Door(AnimatedSprite):
         screen.blit(self.image, (self.x, self.y))
         # pygame.draw.rect(screen, (0, 255, 0), self.rect)
 
+slash = lambda x,y: Effect(Animation("./src/Effects/slash.png", [3] * 5, 0, False, 64, 48), x, y)
+thump = lambda x,y: Effect(Animation("./src/Effects/thump.png", [3] * 8, 0, False, 118, 29), x, y)
+
 clock = pygame.time.Clock()
 FPS = 60
 VELOCITY = 4
@@ -410,17 +437,26 @@ King.add_animation(Animation("./src/King/damage.png", [6] * 2, 0, True, 63, 58, 
 King.add_animation(Animation("./src/King/enter.png", [6] * 8 + [30 + 30], 0, False, 63, 58, 15), "enter")
 King.add_animation(Animation("./src/King/exit.png", [6] * 8, 0, False, 63, 58, 15), "exit")
 King.add_animation(Animation("./src/King/death.png", [6] * 4, 0, False, 63, 58, 15), "death")
+King.add_animation(Animation("./src/King/thump.png", [3, 15, 10], 0, False, 63, 58, 15), "thump")
 King.imgsize = (45, 26)
 King.coins = 0
 King.dash = 0
 King.hitbyboss = 0
+King.thump = 0
+
+class Hitbox(pygame.sprite.Sprite):
+    def __init__(self, r):
+        super().__init__()
+        self.rect = r
 
 def King_mode(King):
     global RETURNHOME
+    global DAMAGE
     if King.health <= 0:
         King.mode = "death"
         if RETURNHOME == 0:
             RETURNHOME = 180
+            Death.play()
         return
     if King.y > GROUND:
         King.y = GROUND
@@ -442,8 +478,30 @@ def King_mode(King):
         if King.hitbyboss:
             King.x += King.hitbyboss
             King.hitbyboss -= 5 * (1 if King.hitbyboss > 0 else -1)
+        King.thump = 0
     elif King.attack:
         King.mode = "attack"
+    elif King.thump:
+        King.mode = "thump"
+        King.thump -= 1
+        if King.animation["thump"].step_idx == 2 and King.animation["thump"].current_frame == 1:
+            Thump.play()
+            Effects.add(thump(King.rect.left - 100, King.rect.top + 10))
+            tmprect = pygame.Rect(King.rect.left - 80, King.rect.top, King.rect.width * 2 + 60, King.rect.height)
+            # pygame.draw.rect(screen, (0, 255, 0), tmprect)
+            tmprect = Hitbox(tmprect)
+            for mob in TMGroup:
+                if pygame.sprite.collide_rect(tmprect, mob) and mob.mode != "death" and mob.mode != "damage":
+                    mob.damage = sum(mob.animation["damage"].steps)
+                    mob.health -= DAMAGE * 3
+            for mob in GGroup:
+                if pygame.sprite.collide_rect(tmprect, mob) and mob.mode != "death" and mob.mode != "damage":
+                    mob.damage = sum(mob.animation["damage"].steps)
+                    mob.health -= DAMAGE * 3
+            for mob in BGroup:
+                if pygame.sprite.collide_rect(tmprect, mob) and mob.mode != "death" and mob.mode != "damage":
+                    mob.damage = sum(mob.animation["damage"].steps)
+                    mob.health -= DAMAGE * 3
     elif King.enter:
         King.mode = "enter"
         King.velocity[0] = 0
@@ -462,6 +520,8 @@ def stagechange():
     global Doors
     global Dooridx
     if Dooridx == 1:
+        BG.stop()
+        Battle.play(-1)
         menuidx = 1
         Doors = AnimGroup()
         Doors.add(Door(1000, GROUND - 34))
@@ -491,6 +551,12 @@ def stagechange():
             GGroup.add(Golem(900, GROUND - G_PADDING))
             
     elif Dooridx == -1:
+        Battle.stop()
+        BG.stop()
+        if CLEAR:
+            Victory.play(-1)
+        else:
+            BG.play(-1)
         menuidx = 0
         Doors = AnimGroup()
         Doors.add(Door(600, GROUND - 34))
@@ -544,6 +610,7 @@ while run:
                 Effects.add(Effect(Animation("./src/Effects/Smoke/dash.png", [2] * 10, 0, False, 43, 53), King.x, (King.y + King.rect.centery) // 2 - 70))
                 # King.velocity[0] *= 5
                 King.velocity[0] += 4 * DASH_SPEED * ((King.velocity[0] > 0) - (King.velocity[0] < 0))
+                Dash.play()
                 King.dash = 30
             elif event.key in (pygame.K_LEFT,):
                 King.kp = 1
@@ -554,7 +621,7 @@ while run:
             elif event.key in (pygame.K_UP, pygame.K_SPACE) and not King.jump:
                 King.velocity[1] += -JUMPVEL
                 King.jump = JUMPVEL//GRAVITY*2
-            elif event.key == pygame.K_z and not King.attack:
+            elif event.key == pygame.K_z and not King.attack and not King.thump:
                 for idx in range(len(Doors)):
                     d = Doors[idx]
                     if pygame.sprite.collide_rect(King, d) and d.mode == "idle":
@@ -566,11 +633,14 @@ while run:
                         if MENU[menuidx] == 'main' or MENU[menuidx] == 'shop':
                             Dooridx = 1
                             Stage_no = idx
+                            Enter.play()
                         if MENU[menuidx] == 'stage':
                             Dooridx = -1
                             for __ in range(10): Coins.add(Coin(d.rect.centerx, d.rect.top))
                             King.health += 10
                         break
+                if not King.enter: King.attack = sum(King.animation["attack"].steps)
+                Attack.play()
                 if MENU[menuidx] == 'stage':
                     for TM in TMGroup:
                         if pygame.sprite.collide_rect(King, TM) and TM.mode != "death" and TM.mode != "damage":
@@ -584,10 +654,12 @@ while run:
                         if pygame.sprite.collide_rect(King, Bos) and Bos.mode != "death" and Bos.mode != "damage":
                             Bos.damage = sum(Bos.animation["damage"].steps)
                             Bos.health -= DAMAGE
-                    King.attack = sum(King.animation["attack"].steps)
                 elif MENU[menuidx] == 'main':
                     if pygame.sprite.collide_rect(King, Shop):
                         menuidx = 3
+            elif event.key == pygame.K_x and not King.attack and not King.thump and not King.jump:
+                King.thump = sum(King.animation["thump"].steps)
+
         elif event.type == pygame.KEYUP:
             if event.key in (pygame.K_LEFT, pygame.K_RIGHT):
                 King.kp = 0
@@ -608,18 +680,21 @@ while run:
         screen.blit(smallfont.render(f"{DAMAGEUP_PRICE}", True, (255, 255, 255)), (SCREEN_SIZE[0] // 2 + 64 * 3 + 37, 258))
         if Speedupgrade.clicked:
             if King.coins >= SPEEDUP_PRICE:
+                Buy.play()
                 King.coins -= SPEEDUP_PRICE
                 SPEEDUP_PRICE += 20
                 DASH_SPEED += 1
             Speedupgrade.clicked = False
         if Healthupgrade.clicked:
             if King.coins >= HEALTHUP_PRICE:
+                Buy.play()
                 King.coins -= HEALTHUP_PRICE
                 HEALTHUP_PRICE += 10
                 King.health += 15
             Healthupgrade.clicked = False
         if Damageupgrade.clicked:
             if King.coins >= DAMAGEUP_PRICE:
+                Buy.play()
                 King.coins -= DAMAGEUP_PRICE
                 DAMAGE += 1
                 DAMAGEUP_PRICE += 20
