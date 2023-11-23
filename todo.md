@@ -3,6 +3,7 @@
 ~~character death~~
 ~~barrier using tile~~
 ~~Shop~~
+1. option page
 
 ## class
 ~~TM class~~
@@ -15,7 +16,7 @@
 ~~money system~~
 ~~Upgrade at shop~~
 1. slash skill
-1. thump skill
+~~thump skill~~
 
 ## Goal
 ~~Final Boss~~
